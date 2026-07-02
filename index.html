@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlanConvert - Zero-Upload Media Converter</title>
+    
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans selection:bg-indigo-100 selection:text-indigo-900 flex flex-col">
+
+    <nav class="w-full p-4 flex items-center justify-between bg-white border-b border-slate-200 shadow-sm">
+        <div class="flex items-center gap-2 text-indigo-600 font-bold text-xl tracking-tight">
+            <i data-lucide="zap" class="w-6 h-6"></i>
+            AlanConvert
+        </div>
+        <div class="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            100% Client-Side
+        </div>
+    </nav>
+
+    <main class="flex-grow flex items-center justify-center p-4 md:p-8">
+        <div class="max-w-3xl w-full space-y-6">
+            
+            <div class="text-center space-y-2 mb-8">
+                <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Convert Media Securely</h1>
+                <p class="text-slate-500 max-w-xl mx-auto">Your files never leave your device. Processing happens entirely inside your browser using WebAssembly.</p>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-6 md:p-8 relative overflow-hidden">
+                
+                <div id="engine-loader" class="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center transition-opacity duration-500">
+                    <i data-lucide="loader-2" class="w-10 h-10 text-indigo-600 animate-spin mb-4"></i>
+                    <h3 class="text-lg font-bold text-slate-800">Initializing Engine</h3>
+                    <p class="text-sm text-slate-500 text-center max-w-xs mt-2" id="engine-status">Please wait while we load the WebAssembly modules...</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    <div class="space-y-4">
+                        <label class="block text-sm font-bold text-slate-700">1. Select File</label>
+                        <div id="dropzone" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-indigo-50 hover:border-indigo-400 transition-colors cursor-pointer flex flex-col items-center justify-center h-48 group">
+                            <input type="file" id="file-input" class="hidden" accept="video/*,audio/*">
+                            <div class="bg-indigo-100 text-indigo-600 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+                                <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                            </div>
+                            <span class="text-slate-600 font-medium" id="file-name-display">Click or drag file here</span>
+                            <span class="text-slate-400 text-xs mt-2" id="file-size-display">Supports MP4, MOV, WEBM, MP3, WAV...</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">2. Target Format</label>
+                            <select id="format-select" class="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
+                                <optgroup label="Video">
+                                    <option value="mp4">MP4 (H.264)</option>
+                                    <option value="webm">WEBM</option>
+                                    <option value="gif">GIF (Animated)</option>
+                                    <option value="avi">AVI</option>
+                                </optgroup>
+                                <optgroup label="Audio">
+                                    <option value="mp3">MP3</option>
+                                    <option value="wav">WAV</option>
+                                    <option value="aac">AAC</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">3. File Naming Standard</label>
+                            <input type="text" id="naming-template" value="[name]_converted_[date].[ext]" class="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow" placeholder="e.g. [name]_[date].[ext]">
+                            <p class="text-xs text-slate-400 mt-2">
+                                Available tags: <code class="bg-slate-200 px-1 rounded">[name]</code>, <code class="bg-slate-200 px-1 rounded">[date]</code>, <code class="bg-slate-200 px-1 rounded">[ext]</code>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-slate-100">
+                    <button id="convert-btn" disabled class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/30 flex items-center justify-center gap-2">
+                        <i data-lucide="zap" class="w-5 h-5"></i>
+                        <span>Start Conversion</span>
+                    </button>
+
+                    <div id="progress-area" class="hidden mt-6 space-y-3">
+                        <div class="flex justify-between text-sm font-medium">
+                            <span class="text-slate-700" id="progress-text">Processing...</span>
+                            <span class="text-indigo-600 font-bold" id="progress-percentage">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                            <div id="progress-bar" class="bg-indigo-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        
+                        <div class="bg-slate-900 rounded-lg p-3 h-32 overflow-y-auto mt-4 font-mono text-xs text-emerald-400">
+                            <div id="log-output" class="whitespace-pre-wrap">Initializing log...</div>
+                        </div>
+                    </div>
+
+                    <div id="result-area" class="hidden mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center">
+                        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <i data-lucide="check" class="w-6 h-6"></i>
+                        </div>
+                        <h4 class="text-lg font-bold text-slate-800 mb-1">Conversion Complete!</h4>
+                        <p class="text-sm text-slate-500 mb-4" id="final-filename">your_file.mp4</p>
+                        <a id="download-btn" href="#" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg hover:shadow-emerald-500/30">
+                            <i data-lucide="download" class="w-5 h-5"></i>
+                            Download File
+                        </a>
+                        <button id="reset-btn" class="mt-4 block w-full text-sm text-slate-500 hover:text-slate-800 underline">Convert another file</button>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="text-center text-xs text-slate-400">Powered by FFmpeg.wasm • No files are ever uploaded.</p>
+        </div>
+    </main>
+
+    <script src="app.js" defer></script>
+</body>
+</html>
